@@ -38,6 +38,14 @@ const args_strings = std.StaticStringMap(args_enum).initComptime(.{
     .{ "--help", .help },
 });
 
+var exit: bool = false;
+
+fn handle_sigint(sig: i32, _: ?*const std.posix.siginfo_t, _: ?*const anyopaque) callconv(.C) void {
+    print(" Exit\n", .{});
+    _ = sig;
+    exit = true;
+}
+
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
@@ -141,6 +149,13 @@ pub fn main() !void {
         }
     }
 
+    var act = std.posix.Sigaction{
+        .handler = .{ .sigaction = handle_sigint },
+        .mask = std.posix.empty_sigset,
+        .flags = 0,
+    };
+    std.posix.sigaction(std.posix.SIG.INT, &act, null);
+
     var prng = std.Random.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
         try std.posix.getrandom(std.mem.asBytes(&seed));
@@ -164,7 +179,7 @@ pub fn main() !void {
         allocator.free(cell_state);
     }
 
-    while (true) {
+    while (!exit) {
         print("{s}", .{ANSI_CLEAR});
         print_arr(cell_state, symbol, color);
         try next_state(allocator, cell_state, arr_birth, arr_survi);
