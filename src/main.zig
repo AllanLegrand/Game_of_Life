@@ -298,3 +298,86 @@ fn parse_rule(filename: []const u8, optname: []const u8, rules: []const u8) ![9]
 
     return arr_rules;
 }
+
+test "parse_int" {
+    const expect = std.testing.expect;
+    const expectError = std.testing.expectError;
+
+    try expect(try parse_int("test", "-t", "123") == 123);
+    try expect(try parse_int("test", "-p", "0") == 0);
+    try expectError(error.InvalidCharacter, parse_int("test", "-t", "abc"));
+    try expectError(error.Overflow, parse_int("test", "-t", "999999999999999999999"));
+}
+
+test "parse_rule" {
+    const expectError = std.testing.expectError;
+    const expectEqualSlices = std.testing.expectEqualSlices;
+
+    const rule_b3 = try parse_rule("test", "-b", "3");
+    try expectEqualSlices(bool, &rule_b3, &[_]bool{ false, false, false, true, false, false, false, false, false });
+
+    const rule_s23 = try parse_rule("test", "-v", "23");
+    try expectEqualSlices(bool, &rule_s23, &[_]bool{ false, false, true, true, false, false, false, false, false });
+
+    try expectError(error.InvalidCharacter, parse_rule("test", "-b", "9"));
+    try expectError(error.InvalidCharacter, parse_rule("test", "-v", "abc"));
+}
+
+test "count_neighboor" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+
+    var grid = try allocator.alloc([]bool, 3);
+    for (grid) |*row| {
+        row.* = try allocator.alloc(bool, 3);
+    }
+    defer {
+        for (grid) |row| allocator.free(row);
+        allocator.free(grid);
+    }
+
+    for (grid) |row| @memset(row, false);
+    try expect(count_neighboor(grid, 1, 1) == 0);
+
+    grid[0][1] = true;
+    grid[1][0] = true;
+    grid[1][2] = true;
+    try expect(count_neighboor(grid, 1, 1) == 3);
+
+    grid[2][0] = true;
+    grid[0][2] = true;
+    try expect(count_neighboor(grid, 0, 0) == 5);
+}
+
+test "next_state" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+
+    const grid = try allocator.alloc([]bool, 3);
+    for (grid) |*row| {
+        row.* = try allocator.alloc(bool, 3);
+    }
+    defer {
+        for (grid) |row| allocator.free(row);
+        allocator.free(grid);
+    }
+
+    const arr_birth = try parse_rule("test", "default", "3");
+    const arr_survi = try parse_rule("test", "default", "23");
+
+    @memset(grid[0], false);
+    @memset(grid[1], true);
+    @memset(grid[2], false);
+
+    try next_state(allocator, grid, arr_birth, arr_survi);
+
+    try expect(grid[0][1] == true);
+    try expect(grid[1][1] == true);
+    try expect(grid[2][1] == true);
+    try expect(grid[0][0] == true);
+    try expect(grid[0][2] == true);
+    try expect(grid[1][0] == true);
+    try expect(grid[1][2] == true);
+    try expect(grid[2][0] == true);
+    try expect(grid[2][2] == true);
+}
